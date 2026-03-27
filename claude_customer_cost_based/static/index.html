@@ -1,0 +1,111 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>代码助手 MVP</title>
+  <style>
+    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; margin: 0; background: #0b1020; color: #eef2ff; }
+    .wrap { max-width: 980px; margin: 0 auto; padding: 24px; }
+    .card { background: #141b34; border: 1px solid #26314f; border-radius: 16px; padding: 18px; margin-bottom: 16px; }
+    input, textarea, select, button { width: 100%; box-sizing: border-box; border-radius: 10px; border: 1px solid #39476f; background: #0f1630; color: #eef2ff; padding: 12px; font-size: 14px; }
+    textarea { min-height: 130px; resize: vertical; }
+    button { background: #5b7cff; border: none; font-weight: 700; cursor: pointer; }
+    button:hover { filter: brightness(1.05); }
+    .grid { display: grid; gap: 12px; grid-template-columns: 1fr 1fr; }
+    .muted { color: #a9b6d3; font-size: 13px; }
+    pre { white-space: pre-wrap; word-wrap: break-word; background: #0b1020; padding: 14px; border-radius: 10px; border: 1px solid #26314f; }
+    .row { display:flex; gap: 12px; }
+    .row > * { flex: 1; }
+    @media (max-width: 760px) { .grid, .row { grid-template-columns: 1fr; display:block; } .row > * { margin-bottom: 12px; } }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <h1>代码助手 MVP</h1>
+    <p class="muted">这个版本适合做淘宝最小验证：用户注册 → 看额度 → 提问 → 自动扣减。</p>
+
+    <div class="card">
+      <h3>1. 注册测试用户</h3>
+      <div class="row">
+        <input id="username" placeholder="用户名，例如 test001" />
+        <input id="credits" type="number" value="20" min="1" max="10000" />
+      </div>
+      <div style="margin-top:12px;"><button onclick="registerUser()">注册 / 查询</button></div>
+      <p id="quota" class="muted"></p>
+    </div>
+
+    <div class="card">
+      <h3>2. 提问</h3>
+      <div class="grid">
+        <div>
+          <label>语言 / 技术栈</label>
+          <select id="language">
+            <option value="Python">Python</option>
+            <option value="JavaScript">JavaScript</option>
+            <option value="TypeScript">TypeScript</option>
+            <option value="Java">Java</option>
+            <option value="SQL">SQL</option>
+            <option value="其他">其他</option>
+          </select>
+        </div>
+        <div>
+          <label>说明</label>
+          <input id="prompt" placeholder="例如：帮我解释这个报错，并给出修复后的代码" />
+        </div>
+      </div>
+      <div style="margin-top:12px;">
+        <label>代码 / 报错信息</label>
+        <textarea id="code" placeholder="把报错日志或代码粘贴在这里"></textarea>
+      </div>
+      <div style="margin-top:12px;"><button onclick="askClaude()">发送问题</button></div>
+      <p id="status" class="muted"></p>
+    </div>
+
+    <div class="card">
+      <h3>3. 回答</h3>
+      <pre id="answer">这里会显示 Claude 的返回内容</pre>
+    </div>
+  </div>
+
+<script>
+async function registerUser() {
+  const username = document.getElementById('username').value.trim();
+  const initialCredits = Number(document.getElementById('credits').value || 20);
+  if (!username) return alert('请先输入用户名');
+  const res = await fetch('/api/register', {
+    method: 'POST', headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({ username, initial_credits: initialCredits })
+  });
+  const data = await res.json();
+  if (!res.ok) return alert(data.detail || '注册失败');
+  document.getElementById('quota').innerText = `用户：${data.username}｜剩余额度：${data.credits}`;
+}
+
+async function askClaude() {
+  const username = document.getElementById('username').value.trim();
+  const prompt = document.getElementById('prompt').value.trim();
+  const code = document.getElementById('code').value;
+  const language = document.getElementById('language').value;
+  if (!username || !prompt) return alert('请先输入用户名和问题');
+
+  document.getElementById('status').innerText = '正在请求 Claude...';
+  document.getElementById('answer').innerText = '处理中，请稍候...';
+
+  const res = await fetch('/api/chat', {
+    method: 'POST', headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({ username, prompt, code, language })
+  });
+  const data = await res.json();
+  if (!res.ok) {
+    document.getElementById('status').innerText = data.detail || '请求失败';
+    document.getElementById('answer').innerText = '请求失败';
+    return;
+  }
+  document.getElementById('status').innerText = `本次消耗 ${data.credits_used} 点，剩余 ${data.credits_left} 点，模型：${data.model}`;
+  document.getElementById('answer').innerText = data.answer;
+  document.getElementById('quota').innerText = `用户：${username}｜剩余额度：${data.credits_left}`;
+}
+</script>
+</body>
+</html>

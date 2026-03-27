@@ -1,0 +1,110 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>管理员后台</title>
+  <style>
+    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; margin: 0; background: #081126; color: #eef2ff; }
+    .wrap { max-width: 980px; margin: 0 auto; padding: 24px; }
+    .card { background: #101a39; border: 1px solid #26314f; border-radius: 18px; padding: 18px; margin-bottom: 18px; }
+    input, button { width: 100%; box-sizing: border-box; border-radius: 10px; border: 1px solid #39476f; background: #0b1430; color: #eef2ff; padding: 12px; font-size: 14px; }
+    button { background: #5b7cff; border: none; font-weight: 700; cursor: pointer; }
+    .row { display: grid; gap: 12px; grid-template-columns: 1fr 1fr 1fr; }
+    .muted { color: #a9b6d3; font-size: 13px; }
+    table { width: 100%; border-collapse: collapse; }
+    td, th { border-bottom: 1px solid #26314f; padding: 10px 6px; text-align: left; font-size: 14px; }
+    @media (max-width: 760px) { .row { grid-template-columns: 1fr; } }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="card">
+      <h2>管理员后台</h2>
+      <p class="muted">这里只给你自己用。顾客不要看到这个页面。</p>
+      <input id="adminPassword" placeholder="请输入管理员密码（在 .env 里设置）" />
+    </div>
+
+    <div class="card">
+      <h3>创建顾客账号</h3>
+      <div class="row">
+        <input id="displayName" placeholder="顾客名字，例如 张三" />
+        <input id="initialCredits" type="number" value="20" min="1" />
+        <input id="customCode" placeholder="访问码（可留空自动生成）" />
+      </div>
+      <div style="margin-top:12px;"><button onclick="createUser()">创建顾客访问码</button></div>
+      <p id="createResult" class="muted"></p>
+    </div>
+
+    <div class="card">
+      <h3>给顾客充值</h3>
+      <div class="row">
+        <input id="rechargeCode" placeholder="输入访问码" />
+        <input id="rechargeCredits" type="number" value="20" min="1" />
+        <button onclick="rechargeUser()">充值</button>
+      </div>
+      <p id="rechargeResult" class="muted"></p>
+    </div>
+
+    <div class="card">
+      <h3>顾客列表</h3>
+      <div style="margin-bottom:12px;"><button onclick="listUsers()">刷新列表</button></div>
+      <table>
+        <thead>
+          <tr><th>顾客名</th><th>访问码</th><th>剩余额度</th><th>创建时间</th></tr>
+        </thead>
+        <tbody id="usersTable"></tbody>
+      </table>
+    </div>
+  </div>
+<script>
+function getPassword() { return document.getElementById('adminPassword').value.trim(); }
+
+async function createUser() {
+  const admin_password = getPassword();
+  const display_name = document.getElementById('displayName').value.trim();
+  const initial_credits = Number(document.getElementById('initialCredits').value || 20);
+  const access_code = document.getElementById('customCode').value.trim();
+  const res = await fetch('/api/admin/create_user', {
+    method: 'POST', headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({ admin_password, display_name, initial_credits, access_code })
+  });
+  const data = await res.json();
+  if (!res.ok) return alert(data.detail || '创建失败');
+  document.getElementById('createResult').innerText = `已创建：${data.display_name} ｜ 访问码：${data.access_code} ｜ 额度：${data.credits}`;
+  listUsers();
+}
+
+async function rechargeUser() {
+  const admin_password = getPassword();
+  const access_code = document.getElementById('rechargeCode').value.trim().toUpperCase();
+  const add_credits = Number(document.getElementById('rechargeCredits').value || 20);
+  const res = await fetch('/api/admin/recharge', {
+    method: 'POST', headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({ admin_password, access_code, add_credits })
+  });
+  const data = await res.json();
+  if (!res.ok) return alert(data.detail || '充值失败');
+  document.getElementById('rechargeResult').innerText = `已充值：${data.access_code} ｜ 当前剩余额度：${data.credits}`;
+  listUsers();
+}
+
+async function listUsers() {
+  const admin_password = getPassword();
+  const res = await fetch('/api/admin/list_users', {
+    method: 'POST', headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({ admin_password })
+  });
+  const data = await res.json();
+  if (!res.ok) return alert(data.detail || '获取失败');
+  const tbody = document.getElementById('usersTable');
+  tbody.innerHTML = '';
+  for (const u of data.users) {
+    const tr = document.createElement('tr');
+    tr.innerHTML = `<td>${u.display_name}</td><td>${u.access_code}</td><td>${u.credits}</td><td>${u.created_at}</td>`;
+    tbody.appendChild(tr);
+  }
+}
+</script>
+</body>
+</html>
